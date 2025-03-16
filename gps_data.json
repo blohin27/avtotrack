@@ -1,0 +1,11 @@
+[
+  {
+    "packetId": 1,
+    "latitude": 0.1,
+    "longitude": 0.473432,
+    "speed": 30,
+    "course": 90,
+    "altitude": 100,
+    "timestamp": "2025-03-16T16:13:53.478Z"
+  }
+]
