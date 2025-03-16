@@ -11,8 +11,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@types/moment-timezone": "^0.5.30",
     "@types/pg": "^8.11.11",
     "dotenv": "^16.4.7",
+    "moment-timezone": "^0.5.47",
     "pg": "^8.14.0"
   },
   "devDependencies": {

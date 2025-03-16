@@ -1,6 +1,7 @@
 import * as net from 'net';
 import { Client } from 'pg';
 import * as dotenv from 'dotenv';
+import moment from 'moment-timezone';
 
 dotenv.config();
 const PORT = 4500;
@@ -61,7 +62,7 @@ const parseEGTSData = (buffer: Buffer): EGTSData => {
     speed: buffer.readUInt16LE(14),
     course: buffer.readUInt16LE(16),
     altitude: buffer.readUInt16LE(18),
-    timestamp: new Date().toISOString(),
+    timestamp: moment().tz('Europe/Moscow').format()
   };
 };
 
