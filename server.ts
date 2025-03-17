@@ -1,4 +1,4 @@
-import * as net from 'net';
+import * as dgram from 'dgram';
 import { Client } from 'pg';
 import * as dotenv from 'dotenv';
 import moment from 'moment-timezone';
@@ -45,59 +45,30 @@ const saveRawDataToDB = async (data: EGTSRawData) => {
   }
 };
 
-const sendEGTSResponse = (socket: net.Socket, packetId: number) => {
-  const response = Buffer.alloc(11);
-  response.writeUInt8(0x01, 0); // Версия протокола EGTS
-  response.writeUInt8(0x00, 1); // Security key ID
-  response.writeUInt16LE(0x000b, 2); // Длина пакета
-  response.writeUInt16LE(packetId, 4); // Packet ID
-  response.writeUInt8(0x00, 6); // Тип ответа (EGTS_PT_RESPONSE)
-  response.writeUInt8(0x00, 7); // Флаги пакета
-  response.writeUInt8(0x00, 8); // Код результата обработки (успешно)
-  response.writeUInt16LE(0x0000, 9); // CRC (упрощенно)
+const server = dgram.createSocket('udp4');
 
-  socket.write(response);
-  console.log(`Отправлено подтверждение для пакета ID: ${packetId}`);
-};
-
-const server = net.createServer((socket) => {
-  console.log('Трекер подключен:', socket.remoteAddress);
-
-  socket.on('data', async (data: Buffer) => {
-    try {
-      const packetId = data.readUInt16LE(4) || 0; // Если пакет ID не указан, то 0
-      const timestamp = moment().tz('Europe/Moscow').format();
-
-      console.log('Получены данные (hex):', data.toString('hex'));
-      console.log('Получены данные (buffer):', data);
-
-      // const rawText = data.toString('utf8'); // Используйте 'utf8' для текстовых данных
-
-      await saveRawDataToDB({
-        packetId,
-        rawHex: data.toString('hex'),
-        rawText:'123', // Сохраняем текстовое представление
-        timestamp,
-      });
-
-      sendEGTSResponse(socket, packetId);
-    } catch (err) {
-      console.error('Ошибка обработки данных:', err);
-    }
-  });
-
-  socket.on('end', () => {
-    console.log('Трекер отключился:', socket.remoteAddress);
-  });
-
-  socket.on('error', (err) => {
-    console.error('Ошибка соединения:', err);
-  });
+server.on('listening', () => {
+  const address = server.address();
+  console.log(`UDP сервер слушает ${address.address}:${address.port}`);
 });
 
-server.listen(PORT, () => {
-  console.log(`Сервер запущен на ${PORT}`);
+server.on('message', async (msg, rinfo) => {
+  try {
+    const packetId = msg.readUInt16LE(4) || 0; // Используем 0, если packetId не определен
+    const timestamp = moment().tz('Europe/Moscow').format();
+
+    await saveRawDataToDB({
+      packetId,
+      rawHex: msg.toString('hex'),
+      rawText: '123',
+      timestamp,
+    });
+  } catch (err) {
+    console.error('Ошибка обработки UDP-пакета:', err);
+  }
 });
+
+server.bind(PORT);
 
 process.on('exit', () => {
   dbClient.end();
