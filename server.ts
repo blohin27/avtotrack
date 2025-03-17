@@ -18,52 +18,31 @@ dbClient.connect()
   .then(() => console.log('Подключено к PostgreSQL'))
   .catch((err) => console.error('Ошибка подключения к PostgreSQL:', err));
 
-interface EGTSData {
+interface EGTSRawData {
   packetId: number;
-  latitude: number;
-  longitude: number;
-  speed: number;
-  course: number;
-  altitude: number;
+  rawHex: string;
+  rawText: string;
   timestamp: string;
 }
 
-const saveDataToDB = async (data: EGTSData) => {
+const saveRawDataToDB = async (data: EGTSRawData) => {
   const query = `
-    INSERT INTO gps_data (packet_id, latitude, longitude, speed, course, altitude, timestamp)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    INSERT INTO gps_raw_data (packet_id, raw_text, raw_hex, timestamp)
+    VALUES ($1, $2, $3, $4) 
   `;
   const values = [
     data.packetId,
-    data.latitude,
-    data.longitude,
-    data.speed,
-    data.course,
-    data.altitude,
+    data.rawText,
+    data.rawHex,
     data.timestamp,
   ];
 
   try {
     await dbClient.query(query, values);
+    console.log('Сырые данные успешно сохранены в базу.');
   } catch (error) {
     console.error('Ошибка при записи данных в PostgreSQL:', error);
   }
-};
-
-const parseEGTSData = (buffer: Buffer): EGTSData => {
-  if (buffer.length < 20) {
-    throw new Error('Слишком короткий пакет EGTS');
-  }
-
-  return {
-    packetId: buffer.readUInt16LE(4),
-    latitude: buffer.readInt32LE(6) / 1000000,
-    longitude: buffer.readInt32LE(10) / 1000000,
-    speed: buffer.readUInt16LE(14),
-    course: buffer.readUInt16LE(16),
-    altitude: buffer.readUInt16LE(18),
-    timestamp: moment().tz('Europe/Moscow').format()
-  };
 };
 
 const sendEGTSResponse = (socket: net.Socket, packetId: number) => {
@@ -86,14 +65,22 @@ const server = net.createServer((socket) => {
 
   socket.on('data', async (data: Buffer) => {
     try {
-      const parsedData = parseEGTSData(data);
-      console.log('Получены данные:', parsedData);
+      const packetId = data.readUInt16LE(4) || 0; // Если пакет ID не указан, то 0
+      const timestamp = moment().tz('Europe/Moscow').format();
 
-      await Promise.all([
-        saveDataToDB(parsedData),
-      ]);
+      console.log('Получены данные (hex):', data.toString('hex'));
+      console.log('Получены данные (buffer):', data);
 
-      sendEGTSResponse(socket, parsedData.packetId);
+      // const rawText = data.toString('utf8'); // Используйте 'utf8' для текстовых данных
+
+      await saveRawDataToDB({
+        packetId,
+        rawHex: data.toString('hex'),
+        rawText:'123', // Сохраняем текстовое представление
+        timestamp,
+      });
+
+      sendEGTSResponse(socket, packetId);
     } catch (err) {
       console.error('Ошибка обработки данных:', err);
     }
@@ -115,6 +102,3 @@ server.listen(PORT, () => {
 process.on('exit', () => {
   dbClient.end();
 });
-
-
-
